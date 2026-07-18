@@ -1,6 +1,6 @@
 /* ============================================================
-   GRAPH.JS — System Field 3D (simplified)
-   Shader-based particle field with formations.
+   GRAPH.JS — System Field 3D · Mouse-reactive particles
+   Partículas que orbitam, fogem e brilham perto do cursor.
    ============================================================ */
 
 import * as THREE from 'three';
@@ -8,18 +8,26 @@ import * as THREE from 'three';
 /* ── CONFIG ──────────────────────────────── */
 const CONFIG = {
   particleCount: 5000,
-  fieldResolution: 48,
-  fieldScale: 0.008,
-  flowSpeed: 0.1,
-  particleSize: 1.2,
-  formationSpeed: 1.5,
+  fieldResolution: 64,
+  fieldScale: 0.006,
+  flowSpeed: 0.08,
+  particleSize: 1.4,
+  formationSpeed: 1.8,
+  // Mouse
+  mouseRadius: 3.5,        // raio de influência do mouse em world units
+  mouseForce: 0.9,         // intensidade da força (0-1)
+  mouseVortex: 0.6,        // intensidade do spin tangencial
+  mouseGlowRadius: 1.8,    // raio do glow de proximidade
+  mouseTrailDecay: 0.92,   // decaimento do rastro (0-1, quanto menor mais rápido some)
+  // Colors
   colors: {
     bg: 0x060708,
     grid: 0x1a1d23,
     particleA: new THREE.Color(0x5e6ad2),
     particleB: new THREE.Color(0xa78bfa),
     particleC: new THREE.Color(0x22c55e),
-    accent: new THREE.Color(0x00ff88),
+    accent: new THREE.Color(0x8b94e8),   // glow near cursor
+    cursor: new THREE.Color(0xc4b5fd),   // very close to cursor
   },
   formations: [
     { name: 'sphere', radius: 3.5 },
@@ -32,6 +40,7 @@ const CONFIG = {
 
 /* ── PRE-ALLOCATED ───────────────────────── */
 const _tmpVec3 = new THREE.Vector3();
+const _tmpVec3b = new THREE.Vector3();
 
 /* ── STATE ───────────────────────────────── */
 let scene, camera, renderer;
@@ -45,8 +54,12 @@ let formationProgress = 0;
 let currentFormationIndex = 0;
 let targetPositions = null;
 
-let mouseWorld = new THREE.Vector3();
+// Mouse — posição suave com lag para efeito de rastro
+let mouseWorld = new THREE.Vector3();        // posição atual (raw)
+let mouseWorldSmooth = new THREE.Vector3();  // posição suavizada
+let mouseVelocity = new THREE.Vector3();     // velocidade (delta entre frames)
 let mouseActive = false;
+let mouseActiveTimer = 0;                    // timer para decaimento suave ao sair
 
 let time = 0;
 let lastTime = 0;
@@ -171,13 +184,13 @@ function createScene() {
   renderer.setClearColor(CONFIG.colors.bg, 1);
   containerEl.appendChild(renderer.domElement);
 
-  // Subtle grid
+  // Subtle grid — mais visível que antes
   const gridGeo = new THREE.PlaneGeometry(30, 30, 40, 40);
   const gridMat = new THREE.MeshBasicMaterial({
     color: CONFIG.colors.grid,
     wireframe: true,
     transparent: true,
-    opacity: 0.04,
+    opacity: 0.05,
     side: THREE.DoubleSide,
   });
   const grid = new THREE.Mesh(gridGeo, gridMat);
@@ -192,7 +205,13 @@ function createScene() {
   particleGeometry.setAttribute('aTarget', new THREE.BufferAttribute(targetPositions.slice(), 3));
 }
 
-/* ── PARTICLES (GPU SHADER) ── */
+/* ── PARTICLES (GPU SHADER) ──
+   Mouse interaction model:
+   - Attraction suave na borda externa do raio
+   - Repulsão forte no centro (evita aglomeração)
+   - Força tangencial (vórtice) perpendicular ao vetor mouse→partícula
+   - Glow: partículas perto do cursor ficam maiores e mudam de cor
+*/
 const PARTICLE_VS = `
   attribute vec3 aTarget;
   attribute float aIndex;
@@ -203,10 +222,15 @@ const PARTICLE_VS = `
   uniform vec2 uFieldResolution;
   uniform sampler2D uFieldTexture;
   uniform vec3 uMouseWorld;
+  uniform vec3 uMouseVelocity;
   uniform float uMouseActive;
+  uniform float uMouseRadius;
+  uniform float uMouseForce;
+  uniform float uMouseVortex;
   uniform float uParticleSize;
   varying vec3 vColor;
-  varying float vFormation;
+  varying vec3 vPosition;
+  varying float vMouseProximity;
 
   vec3 sampleField(vec3 pos) {
     vec2 uv = (pos.xz * 0.5 + 0.5) * uFieldResolution;
@@ -215,49 +239,123 @@ const PARTICLE_VS = `
   }
 
   void main() {
-    vColor = aColor;
-    vFormation = uFormationProgress;
-
     vec3 pos = position;
     vec3 target = aTarget;
 
-    // Gentle flow
+    // ── Flow field ──────────────────────────
     vec3 flow = sampleField(pos + uTime * uFlowSpeed * 100.0);
     pos += flow * 0.08 * (1.0 - uFormationProgress * 0.5);
 
-    // Mouse repulsion
-    if (uMouseActive > 0.5) {
+    // ══════════════════════════════════════════
+    // ── MOUSE INTERACTION ────────────────────
+    // ══════════════════════════════════════════
+    float mouseProximity = 0.0;
+    if (uMouseActive > 0.01) {
       vec3 toMouse = pos - uMouseWorld;
       float dist = length(toMouse);
-      if (dist < 3.0) {
-        pos += normalize(toMouse) * (3.0 - dist) * 0.05;
+      float radius = uMouseRadius;
+
+      if (dist < radius && dist > 0.001) {
+        vec3 dirToMouse = toMouse / dist;
+
+        // Proximity factor — 1 no centro, 0 na borda
+        float prox = 1.0 - smoothstep(0.0, radius, dist);
+        mouseProximity = prox;
+
+        // ── Força radial: attrai na borda, repele no centro ──
+        // Cria um anel de equilíbrio ~30% do raio
+        float radialZone = dist / radius;          // 0 = centro, 1 = borda
+        float radialForce;
+        if (radialZone < 0.25) {
+          // Núcleo: repulsão forte
+          radialForce = (0.25 - radialZone) / 0.25 * 1.2;
+        } else if (radialZone < 0.6) {
+          // Zona de atração
+          radialForce = -(radialZone - 0.25) / 0.35 * 1.0;
+        } else {
+          // Borda externa: atração suave decaindo
+          radialForce = -(1.0 - radialZone) / 0.4 * 0.5;
+        }
+
+        // ── Força tangencial (vórtice) ──
+        // Perpendicular ao vetor mouse→partícula no plano XZ
+        vec3 tangent = vec3(-dirToMouse.z, 0.0, dirToMouse.x);
+        float vortexStrength = uMouseVortex * prox * (1.0 - abs(radialZone - 0.4) * 2.5);
+        vortexStrength = max(vortexStrength, 0.0);
+
+        // ── Força de arrasto pela velocidade do mouse ──
+        float velInfluence = length(uMouseVelocity) * prox * 0.5;
+
+        // Aplica todas as forças
+        float totalForce = uMouseForce * uMouseActive * prox;
+        pos -= dirToMouse * radialForce * totalForce * 0.15;
+        pos += tangent * vortexStrength * totalForce * 0.1;
+        pos += uMouseVelocity * velInfluence * 0.02 * uMouseActive;
+
+        // ── Elevação sutil no eixo Y perto do cursor ──
+        pos.y += prox * uMouseActive * 0.3;
       }
     }
 
-    // Formation morph
+    // ── Formation morph ─────────────────────
     pos = mix(pos, target, uFormationProgress);
 
+    vColor = aColor;
+    vPosition = pos;
+    vMouseProximity = mouseProximity;
+
     vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
-    gl_PointSize = uParticleSize * (200.0 / -mvPosition.z);
+    // Partículas perto do mouse ficam maiores
+    float sizeBoost = 1.0 + mouseProximity * uMouseActive * 2.5;
+    gl_PointSize = uParticleSize * sizeBoost * (200.0 / -mvPosition.z);
     gl_Position = projectionMatrix * mvPosition;
   }
 `;
 
 const PARTICLE_FS = `
   uniform float uTime;
+  uniform vec3 uAccentColor;   // cor de glow a média distância
+  uniform vec3 uCursorColor;   // cor de glow muito perto
+  uniform float uMouseActive;
   varying vec3 vColor;
-  varying float vFormation;
+  varying vec3 vPosition;
+  varying float vMouseProximity;
 
   void main() {
     float dist = length(gl_PointCoord - 0.5);
     if (dist > 0.5) discard;
 
-    float alpha = 1.0 - smoothstep(0.0, 0.45, dist);
-    float pulse = 0.8 + 0.15 * sin(uTime * 3.0 + vFormation * 5.0);
+    // Alpha base — borda suave circular
+    float alpha = 1.0 - smoothstep(0.0, 0.48, dist);
+
+    // Pulse sutil
+    float pulse = 0.82 + 0.12 * sin(uTime * 3.0 + vPosition.y * 2.0);
     alpha *= pulse;
 
+    // ══════════════════════════════════════════
+    // ── MOUSE GLOW ───────────────────────────
+    // ══════════════════════════════════════════
     vec3 color = vColor;
-    gl_FragColor = vec4(color, alpha * 0.6);
+
+    if (vMouseProximity > 0.0 && uMouseActive > 0.01) {
+      float glow = vMouseProximity * uMouseActive;
+
+      // Transição de cor: original → accent → cursor (quanto mais perto, mais quente)
+      if (glow > 0.6) {
+        // Muito perto do cursor — branco/quente
+        color = mix(vColor, uCursorColor, (glow - 0.6) / 0.4);
+      } else {
+        // Distância média — accent color
+        color = mix(vColor, uAccentColor, glow / 0.6);
+      }
+
+      // Brilho extra — partículas perto do cursor são mais opacas
+      alpha = mix(alpha, alpha * 1.6, glow);
+    }
+
+    alpha *= 0.65;
+
+    gl_FragColor = vec4(color, alpha);
   }
 `;
 
@@ -304,8 +402,14 @@ function createParticles() {
       uFieldResolution: { value: new THREE.Vector2(CONFIG.fieldResolution, CONFIG.fieldResolution) },
       uFieldTexture: { value: null },
       uMouseWorld: { value: new THREE.Vector3() },
+      uMouseVelocity: { value: new THREE.Vector3() },
       uMouseActive: { value: 0 },
+      uMouseRadius: { value: CONFIG.mouseRadius },
+      uMouseForce: { value: CONFIG.mouseForce },
+      uMouseVortex: { value: CONFIG.mouseVortex },
       uParticleSize: { value: CONFIG.particleSize },
+      uAccentColor: { value: CONFIG.colors.accent },
+      uCursorColor: { value: CONFIG.colors.cursor },
     },
     vertexShader: PARTICLE_VS,
     fragmentShader: PARTICLE_FS,
@@ -384,25 +488,40 @@ function onScroll() {
   }
 }
 
-/* ── MOUSE ───────────────────────────────── */
+/* ── MOUSE — com suavização e rastro ─────── */
 function onMouseMove(e) {
   if (!containerEl) return;
   const rect = containerEl.getBoundingClientRect();
   const mx = (e.clientX - rect.left) / rect.width;
   const my = (e.clientY - rect.top) / rect.height;
-  mouseActive = true;
 
   const ndcX = (mx * 2 - 1);
   const ndcY = -(my * 2 - 1);
-  mouseWorld.set(ndcX * 6, ndcY * 4, 0);
 
-  particleMaterial.uniforms.uMouseWorld.value.copy(mouseWorld);
-  particleMaterial.uniforms.uMouseActive.value = 1;
+  // Posição no espaço mundo (plano Z=0, escala pela view)
+  const worldX = ndcX * 6;
+  const worldY = ndcY * 4;
+
+  // Velocidade = delta desde o último frame
+  mouseVelocity.set(
+    worldX - mouseWorld.x,
+    worldY - mouseWorld.y,
+    0
+  );
+
+  mouseWorld.set(worldX, worldY, 0);
+  mouseActive = true;
+  mouseActiveTimer = 1.0;
+
+  // Snap do smooth no primeiro movimento após inatividade
+  if (mouseWorldSmooth.length() < 0.01) {
+    mouseWorldSmooth.copy(mouseWorld);
+  }
 }
 
 function onMouseLeave() {
   mouseActive = false;
-  particleMaterial.uniforms.uMouseActive.value = 0;
+  // Não zera — deixa decair naturalmente
 }
 
 /* ── ANIMATION LOOP ──────────────────────── */
@@ -418,7 +537,34 @@ function animate(currentTime) {
   lastTime = currentTime;
   time += dt;
 
+  // ── Mouse smooth follow (rastro) ──────────
+  if (mouseActive) {
+    // Lerp rápido — segue o mouse com lag
+    mouseWorldSmooth.lerp(mouseWorld, 1 - Math.exp(-12 * dt));
+  } else {
+    // Decaimento lento — partículas voltam ao estado natural gradualmente
+    mouseActiveTimer = Math.max(mouseActiveTimer - dt * 1.5, 0);
+  }
+
+  // Atualiza uniforms
   particleMaterial.uniforms.uTime.value = time;
+  particleMaterial.uniforms.uMouseWorld.value.copy(mouseWorldSmooth);
+  particleMaterial.uniforms.uMouseVelocity.value.copy(mouseVelocity);
+
+  // Mouse active com decaimento suave
+  const activeLevel = mouseActive ? 1.0 : Math.max(mouseActiveTimer, 0);
+  particleMaterial.uniforms.uMouseActive.value = activeLevel;
+
+  // Amortece a velocidade quando mouse está parado
+  if (mouseActive && mouseVelocity.length() < 0.02) {
+    mouseVelocity.multiplyScalar(0.9);
+  }
+
+  // ── Flow field update (a cada 2 segundos) ─
+  if (Math.floor(time) % 2 === 0 && Math.floor((time - dt)) % 2 !== 0) {
+    createFlowFieldTexture();
+  }
+
   updateFormation(dt);
   renderer.render(scene, camera);
 }
@@ -437,8 +583,7 @@ function onResize() {
 export function initGraph(container) {
   containerEl = container;
 
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isMobile) {
+  if (skipGraph) {
     container.style.background = 'linear-gradient(135deg, #060708 0%, #0a0f1a 50%, #060708 100%)';
     return;
   }
@@ -493,3 +638,11 @@ export function disposeGraph() {
   camera = null;
   containerEl = null;
 }
+
+// Re-exportado para uso externo (main.js)
+export const skipGraph = (() => {
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const isLowEnd = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+  return prefersReducedMotion || isMobile || isLowEnd;
+})();

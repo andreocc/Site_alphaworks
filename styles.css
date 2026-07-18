@@ -444,7 +444,7 @@ body::before {
   margin-inline: auto;
   display: flex;
   justify-content: center;
-  gap: var(--sp-16);
+  gap: var(--sp-20);
   flex-wrap: wrap;
 }
 
@@ -563,9 +563,9 @@ body::before {
 .about-text {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--sp-8);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-6);
 }
 
 .about-text p {
@@ -578,7 +578,101 @@ body::before {
 
 @media (max-width: 640px) {
   .about-pullquote p { font-size: 1.15rem; }
-  .about-text { grid-template-columns: 1fr; gap: var(--sp-6); }
+}
+
+/* ── EXPERTISE ──────────────────────── */
+.expertise-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-6);
+  position: relative;
+  z-index: 1;
+}
+
+.expertise-card {
+  position: relative;
+  padding: var(--sp-8) var(--sp-6) var(--sp-6);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  transition: all var(--dur-base) var(--ease-out);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.expertise-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  opacity: 0;
+  transition: opacity var(--dur-base) var(--ease-out);
+}
+
+.expertise-card:hover {
+  border-color: var(--border-visible);
+  background: var(--bg-surface);
+  transform: translateY(-2px);
+}
+
+.expertise-card:hover::before {
+  opacity: 1;
+}
+
+.expertise-card__icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  margin-bottom: var(--sp-5);
+}
+
+.expertise-card h3 {
+  font-size: 1rem;
+  margin-bottom: var(--sp-3);
+}
+
+.expertise-card p {
+  font-size: .8125rem;
+  color: var(--text-body);
+  line-height: 1.65;
+  flex: 1;
+  margin-bottom: var(--sp-5);
+}
+
+.expertise-card__tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.expertise-card__tags span {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: .59375rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: .2rem .5rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  transition: all var(--dur-fast) var(--ease-out);
+}
+
+.expertise-card:hover .expertise-card__tags span {
+  border-color: var(--border-visible);
+  color: var(--text-body);
+}
+
+@media (max-width: 768px) {
+  .expertise-grid { grid-template-columns: 1fr; }
 }
 
 /* ── LAB ─────────────────────────────── */
@@ -918,4 +1012,5 @@ body::before {
     transform: none;
   }
   .hero__scroll-line { animation: none; opacity: .3; }
+  .hero__canvas-wrap { display: none; }
 }

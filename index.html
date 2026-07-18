@@ -5,6 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="André Occenstein — Estratégia, IA e transformação digital. Sistemas onde agentes autônomos tomam decisão operacional dentro de limites definidos por governança.">
   <meta name="theme-color" content="#060708">
+  <meta name="robots" content="index, follow">
+  <meta name="author" content="André Occenstein">
+  <link rel="canonical" href="https://alphaworks.com.br">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="AlphaWorks">
+  <meta property="og:title" content="André Occenstein — AlphaWorks">
+  <meta property="og:description" content="Estratégia, IA e transformação digital. Sistemas onde agentes autônomos tomam decisão operacional com governança.">
+  <meta property="og:url" content="https://alphaworks.com.br">
+  <meta property="og:locale" content="pt_BR">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="André Occenstein — AlphaWorks">
+  <meta name="twitter:description" content="Estratégia, IA e transformação digital. Sistemas onde agentes autônomos tomam decisão operacional com governança.">
+
   <title>André Occenstein — AlphaWorks</title>
 
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23060708'/><text x='16' y='22' text-anchor='middle' font-family='system-ui' font-weight='800' font-size='18' fill='%235e6ad2'>α</text></svg>">
@@ -13,10 +30,32 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css" fetchpriority="high">
 
   <script type="importmap">
     { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
+
+  <!-- Structured data: Person -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    "name": "André Occenstein",
+    "givenName": "André",
+    "familyName": "Occenstein",
+    "jobTitle": "Managing Partner & CTPO",
+    "worksFor": { "@type": "Organization", "name": "XALQ", "url": "https://xalk.com.br" },
+    "url": "https://alphaworks.com.br",
+    "sameAs": [
+      "https://linkedin.com/in/andreocc",
+      "https://github.com/andreocc",
+      "https://instagram.com/andreocc.tech",
+      "https://blog.alphaworks.com.br"
+    ],
+    "address": { "@type": "PostalAddress", "addressLocality": "Recife", "addressCountry": "BR" },
+    "description": "Estratégia, IA e transformação digital. Arquitetura de sistemas com agentes autônomos e governança."
+  }
   </script>
 </head>
 <body>
@@ -36,6 +75,10 @@
       <a href="#contato" class="nav__link" data-section="contato">contato</a>
     </div>
 
+    <button class="nav__toggle" id="navToggle" aria-label="Abrir menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+
     <button class="theme-toggle" id="themeToggle" aria-label="Alternar tema">
       <svg class="theme-toggle__sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
       <svg class="theme-toggle__moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -51,6 +94,7 @@
     <div class="hero__canvas-wrap" id="heroCanvas" aria-hidden="true"></div>
 
     <div class="hero__content">
+      <span class="hero__overline">AlphaWorks</span>
       <h1 class="hero__title">
         André Occenstein<br>
         <span class="text-gradient">— Estratégia · IA · Decisão Operacional</span>
@@ -212,6 +256,11 @@
         </h2>
       </div>
 
+      <noscript>
+        <div style="text-align:center;padding:var(--sp-10);color:var(--text-muted);font-size:.875rem;">
+          <p><a href="https://blog.alphaworks.com.br" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Visite o blog →</a></p>
+        </div>
+      </noscript>
       <div class="writings-list" id="writingsList" role="list" aria-label="Posts do blog">
         <div class="writing-item skeleton" aria-hidden="true">
           <span class="skeleton--text-short" style="width:5rem"></span>
@@ -244,6 +293,11 @@
         <h2 id="lab-heading"><span class="highlight">Laboratório</span> de ideias</h2>
       </div>
 
+      <noscript>
+        <div style="text-align:center;padding:var(--sp-10);color:var(--text-muted);font-size:.875rem;">
+          <p><a href="https://github.com/andreocc" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Ver repositórios no GitHub →</a></p>
+        </div>
+      </noscript>
       <div class="lab-grid reveal-stagger" id="labGrid">
         <div class="lab-card skeleton" aria-hidden="true">
           <span class="skeleton--text-short" style="width:4rem"></span>
@@ -305,6 +359,7 @@
   <div class="footer__inner">
     <div class="footer__left">
       <p class="footer__name">André Occenstein · Recife, Brasil</p>
+      <p class="footer__tagline">Decisão se arquiteta. Compliance é comportamento de sistema.</p>
     </div>
     <div class="footer__right">
       <a href="https://xalk.com.br" target="_blank" rel="noopener noreferrer">XALQ</a>

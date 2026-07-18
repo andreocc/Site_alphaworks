@@ -74,15 +74,8 @@ const sectionObserver = new IntersectionObserver((entries) => {
 sections.forEach(s => sectionObserver.observe(s));
 
 /* ── NAV: mobile menu ────────────────── */
-const navInner = document.querySelector('.nav__inner');
 const navLinksEl = document.getElementById('navLinks');
-
-const menuToggle = document.createElement('button');
-menuToggle.className = 'nav__toggle';
-menuToggle.setAttribute('aria-label', 'Abrir menu');
-menuToggle.setAttribute('aria-expanded', 'false');
-menuToggle.innerHTML = '<span></span><span></span><span></span>';
-navInner.insertBefore(menuToggle, themeToggle);
+const menuToggle = document.getElementById('navToggle');
 
 let menuOpen = false;
 menuToggle.addEventListener('click', () => {
@@ -232,6 +225,88 @@ function fmtDate(dateStr) {
   } catch (_) { return dateStr; }
 }
 
+/* ── GITHUB REPOS ────────────────────── */
+const GITHUB_CACHE_KEY = 'aw_github_repos';
+const GITHUB_CACHE_TTL = 30 * 60 * 1000;
+const GITHUB_USER = 'andreocc';
+
+const REPO_DESCRIPTIONS = {
+  'Conselho-de-Modelos': 'Consulta paralela de múltiplos LLMs locais com um juiz-sintetizador que cruza respostas e elimina alucinações.',
+  'Alphastocks': 'Análise e acompanhamento de ativos financeiros com pipeline próprio de dados.',
+  'Alerta_recife': 'Sistema de prevenção de alagamentos com dados abertos e alertas em tempo real.',
+  'Blog_Alphaworks': 'Código-fonte do blog alphaworks.com.br.',
+};
+
+async function fetchGitHubRepos() {
+  const container = document.getElementById('labGrid');
+  if (!container) return;
+
+  try {
+    const cached = JSON.parse(sessionStorage.getItem(GITHUB_CACHE_KEY));
+    if (cached?.timestamp && (Date.now() - cached.timestamp < GITHUB_CACHE_TTL)) {
+      renderRepos(cached.data, container);
+      return;
+    }
+  } catch (_) {}
+
+  try {
+    const res = await fetch(`https://api.github.com/users/${GITHUB_USER}/repos?sort=updated&per_page=6`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const repos = await res.json();
+
+    const data = repos
+      .filter(r => !r.fork)
+      .map(repo => ({
+        name: repo.name,
+        description: repo.description || REPO_DESCRIPTIONS[repo.name] || '',
+        url: repo.html_url,
+        language: repo.language || '',
+        updated: repo.updated_at,
+        stars: repo.stargazers_count,
+      }));
+
+    sessionStorage.setItem(GITHUB_CACHE_KEY, JSON.stringify({ timestamp: Date.now(), data }));
+    renderRepos(data, container);
+  } catch (err) {
+    console.warn('GitHub API indisponível:', err.message);
+    renderReposFallback(container);
+  }
+}
+
+function renderRepos(repos, container) {
+  container.innerHTML = '';
+  container.classList.add('reveal-stagger');
+
+  repos.forEach(repo => {
+    const card = document.createElement('article');
+    card.className = 'lab-card';
+    card.innerHTML = `
+      <span class="lab-card__ring" aria-hidden="true"></span>
+      <div class="lab-card__header">
+        <span class="lab-card__status lab-card__status--stable">${esc(repo.language || 'code')}</span>
+      </div>
+      <h3>${esc(repo.name)}</h3>
+      <p>${esc(repo.description)}</p>
+      <a href="${esc(repo.url)}" target="_blank" rel="noopener noreferrer" class="lab-card__link">
+        github/${esc(repo.name)}
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>
+      </a>
+    `;
+    container.appendChild(card);
+  });
+
+  reObserveStagger(container);
+}
+
+function renderReposFallback(container) {
+  container.innerHTML = `
+    <div style="text-align:center;padding:var(--sp-10);color:var(--text-muted);font-size:.875rem;grid-column:1/-1;">
+      <p>Repositórios indisponíveis no momento.</p>
+      <a href="https://github.com/${GITHUB_USER}" target="_blank" rel="noopener noreferrer" style="color:var(--accent);">Ir para o GitHub →</a>
+    </div>`;
+}
+
 /* ── STAGGER RE-OBSERVER ──────────────── */
 function reObserveStagger(container) {
   if (!('IntersectionObserver' in window)) {
@@ -255,8 +330,13 @@ function reObserveStagger(container) {
 /* ── GRAPH 3D: lazy init ─────────────── */
 let graphInitialized = false;
 const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+const isLowEnd = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4;
+const skipGraph = prefersReducedMotion || isMobile || isLowEnd;
 
 function initGraphWhenVisible() {
+  if (skipGraph) return;
+
   const canvasWrap = document.getElementById('heroCanvas');
   if (!canvasWrap || graphInitialized) return;
 
@@ -277,8 +357,9 @@ function initGraphWhenVisible() {
 /* ── INIT ─────────────────────────────── */
 function init() {
   fetchBlogPosts();
+  fetchGitHubRepos();
 
-  if (!prefersReducedMotion) {
+  if (!skipGraph) {
     initGraphWhenVisible();
   }
 }
