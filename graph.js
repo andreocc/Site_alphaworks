@@ -13,12 +13,12 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 
 /* ── CONFIG ──────────────────────────────── */
 const CONFIG = {
-  particleCount: 15000,
+  particleCount: 8000,
   fieldResolution: 64,
-  fieldScale: 0.015,
-  flowSpeed: 0.3,
-  particleSize: 1.8,
-  formationSpeed: 2.5,
+  fieldScale: 0.01,
+  flowSpeed: 0.15,
+  particleSize: 1.4,
+  formationSpeed: 1.2,
   colors: {
     bg: 0x060708,
     grid: 0x1a1d23,
@@ -31,9 +31,9 @@ const CONFIG = {
   formations: [
     { name: 'sphere', radius: 3.5 },
     { name: 'torus', radius: 3, tube: 1.2 },
-    { name: 'wave', amplitude: 2.5, frequency: 1.5 },
-    { name: 'grid', spacing: 0.35 },
-    { name: 'helix', radius: 2.5, height: 6, turns: 3 },
+    { name: 'wave', amplitude: 1.8, frequency: 1.2 },
+    { name: 'grid', spacing: 0.45 },
+    { name: 'helix', radius: 2.2, height: 5, turns: 2.5 },
   ],
 };
 
@@ -210,18 +210,18 @@ function createScene() {
 
   const bloomPass = new UnrealBloomPass(
     new THREE.Vector2(w, h),
-    1.5,   // strength
-    0.4,   // radius
-    0.15   // threshold
+    0.6,   // strength
+    0.25,  // radius
+    0.35   // threshold
   );
   composer.addPass(bloomPass);
 
-  const filmPass = new FilmPass(0.15, 0.02, 2048, false);
+  const filmPass = new FilmPass(0.06, 0.01, 2048, false);
   composer.addPass(filmPass);
 
   // Chromatic aberration
   const chromaticShader = {
-    uniforms: { tDiffuse: { value: null }, uAmount: { value: 0.0015 } },
+    uniforms: { tDiffuse: { value: null }, uAmount: { value: 0.0005 } },
     vertexShader: `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
     fragmentShader: `
       uniform sampler2D tDiffuse; uniform float uAmount;
@@ -239,11 +239,11 @@ function createScene() {
 
   // Subtle grid floor
   const gridGeo = new THREE.PlaneGeometry(40, 40, 80, 80);
-  const gridMat = new THREE.MeshBasicMaterial({
+const gridMat = new THREE.MeshBasicMaterial({
     color: CONFIG.colors.grid,
     wireframe: true,
     transparent: true,
-    opacity: 0.06,
+    opacity: 0.03,
     side: THREE.DoubleSide,
   });
   const grid = new THREE.Mesh(gridGeo, gridMat);
@@ -264,7 +264,7 @@ function createScene() {
     axisPositions[ai++] = 20; axisPositions[ai++] = -2.5; axisPositions[ai++] = x;
   }
   axisGeo.setAttribute('position', new THREE.BufferAttribute(axisPositions, 3));
-  const axisMat = new THREE.LineBasicMaterial({ color: CONFIG.colors.grid, transparent: true, opacity: 0.04 });
+  const axisMat = new THREE.LineBasicMaterial({ color: CONFIG.colors.grid, transparent: true, opacity: 0.02 });
   const axisLines = new THREE.LineSegments(axisGeo, axisMat);
   scene.add(axisLines);
 
@@ -352,7 +352,7 @@ const PARTICLE_FS = `
     float centerDist = length(gl_PointCoord - 0.5) * 2.0;
     color = mix(color, vec3(1.0), (1.0 - centerDist) * 0.3 * (1.0 - vFormation));
 
-    gl_FragColor = vec4(color, alpha * 0.9);
+    gl_FragColor = vec4(color, alpha * 0.7);
   }
 `;
 
